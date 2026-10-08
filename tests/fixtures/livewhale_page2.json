@@ -1,0 +1,28 @@
+{
+  "meta": {"type": "events", "total_results": 6, "per_page": 4, "page": 2, "total_pages": 2},
+  "links": {"next": null},
+  "data": [
+    {
+      "id": 1004,
+      "title": "Library Closed",
+      "url": "https://events.example.edu/event/1004-library-closed",
+      "date_utc": "2026-11-26 06:00:00",
+      "date2_utc": null,
+      "is_all_day": 1,
+      "repeats_start": null,
+      "repeats_end": null,
+      "timezone": "America/Chicago"
+    },
+    {
+      "id": 1005,
+      "title": "Author Talk",
+      "url": "https://events.example.edu/event/1005-author-talk",
+      "date_utc": "2026-10-16 20:00:00",
+      "date2_utc": null,
+      "is_all_day": null,
+      "repeats_start": "2026-10-16 20:00:00",
+      "repeats_end": null,
+      "timezone": "America/Chicago"
+    }
+  ]
+}

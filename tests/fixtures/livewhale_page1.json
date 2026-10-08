@@ -1,0 +1,56 @@
+{
+  "meta": {"type": "events", "total_results": 6, "per_page": 4, "page": 1, "total_pages": 2},
+  "links": {"next": "https://events.example.edu/live/json/events/group/Example/hide_repeats/true?page=2"},
+  "data": [
+    {
+      "id": 1001,
+      "title": "Workshop: Data &amp; Maps",
+      "url": "https://events.example.edu/event/1001-workshop-data-maps",
+      "date_utc": "2026-10-14 18:00:00",
+      "date2_utc": "2026-10-14 20:00:00",
+      "is_all_day": null,
+      "repeats_start": "2026-10-14 18:00:00",
+      "repeats_end": "2026-10-14 20:00:00",
+      "timezone": "America/Chicago",
+      "description": "<p>Bring a laptop.</p>",
+      "location": "Main Library, Room 100"
+    },
+    {
+      "id": 1002,
+      "title": "Exhibition: Paper Trails",
+      "url": "https://events.example.edu/event/1002-exhibition-paper-trails",
+      "date_utc": "2026-10-08 05:00:00",
+      "date2_utc": null,
+      "is_all_day": 1,
+      "repeats_start": "2026-09-08 14:00:00",
+      "repeats_end": "2026-12-11 22:45:00",
+      "timezone": "America/Chicago",
+      "description": "<p>Gallery exhibition.</p>",
+      "location": "Main Library, Gallery"
+    },
+    {
+      "id": 1002,
+      "title": "Exhibition: Paper Trails",
+      "url": "https://events.example.edu/event/1002-exhibition-paper-trails",
+      "date_utc": "2026-10-09 05:00:00",
+      "date2_utc": null,
+      "is_all_day": 1,
+      "repeats_start": "2026-09-08 14:00:00",
+      "repeats_end": "2026-12-11 22:45:00",
+      "timezone": "America/Chicago",
+      "description": "<p>Gallery exhibition.</p>",
+      "location": "Main Library, Gallery"
+    },
+    {
+      "id": 1003,
+      "title": "Reading Week",
+      "url": "https://events.example.edu/event/1003-reading-week",
+      "date_utc": "2026-10-08 05:00:00",
+      "date2_utc": null,
+      "is_all_day": 1,
+      "repeats_start": "2026-10-07 05:00:00",
+      "repeats_end": "2026-11-02 06:00:00",
+      "timezone": "America/Chicago"
+    }
+  ]
+}
