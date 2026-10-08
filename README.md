@@ -1,175 +1,162 @@
 # Re-Feed
-Re-Feed is a simple Flask app that allows you to import `JSON` or `RSS` feeds and tag items in them. It generates a new `JSON` or `RSS` feed with the tags included. It also allows you to customize and re-map things in the original feeds if you should need to. For example, you could add data to the titles in the feed or pull them from a different element in the original feed.
 
-## Installation
-1. Clone the repo.
-2. Create a Virtualenv: `python3 -m venv venv`
-3. Install the requirements: `pip install -r requirements.txt`
+Re-Feed is a Django app that reads RSS, Atom, and LiveWhale event feeds into your database. Editors tag entries, and Re-Feed publishes each tag as an RSS, Atom, and JSON feed. Item links in the output point at the original source items, so a consumer can match a tagged item back to its source by URL.
 
-## Setup
-1. Create a `config.py` file in the root directory.
-2. Add settings to your `config.py`. At a minimum you will need a `SECRET_KEY`, `DEV_USERNAME`, `DEV_PASSWORD`, and a `RSS_FEED_URL` or `JSON_FEED_URL`.
-3. Create a `custom_models.py` if you need to customize the data model for a feed or a `custom_functions.py` if you need to customize one of the fetch or get functions.
-4. Create a `custom.css` file in the `static` directory if you wish to override styles in the admin.
+Re-Feed runs inside your Django project. It has no server, database, or login of its own. It works with the Django admin, and it has an optional Wagtail admin integration.
 
-## Configuration
-Example settings:
-```
-SQLALCHEMY_DATABASE_URI = 'sqlite:///re-feed.db' # Database name
-SQLALCHEMY_TRACK_MODIFICATIONS = False
-RSS_FEED_URL = 'https://some-rss-feed/'
-JSON_FEED_URL = 'https://some-json-feed/'
-FETCH_MODE = 'json' # If not JSON, will default to RSS
-RSS_PUBLISHED_AT_FORMAT = '%a, %d %b %Y %H:%M:%S %z'
-JSON_PUBLISHED_AT_FORMAT = '%Y-%m-%d %H:%M:%S'
-FEED_TITLE = 'My Feed' # Used for the Atom feed
-SECRET_KEY = 'your_dev_secret_key'
-DEV_USERNAME = 'user'
-DEV_PASSWORD = 'password'
-LOGO = '<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="50" cy="50" r="40" stroke="black" stroke-width="2" fill="lightblue" />
-</svg>'
-```
-Date formats (`*_FORMAT`) will need need to match the date formats in the feed you're importing. Add any of these that need to be overridden, to your `config.py`.
+## Requirements
 
-## API
-This app uses `SQLAlchemy` models to create and save to an `SQLite` database, `fetch_` functions to read and import feeds, and `get_` functions to generate new feeds. Any of these can be customized in your `custom_models.py` or `custom_functions.py`. If your feed is different from a simple calendar events feed and/or you need to track more data, you will likely need to customize the `AbstractFeedEntry` model, one `fetch_` function, and one `get_` function.
+- Python 3.10 or later
+- Django 4.2 or later, with `USE_TZ = True`
+- Wagtail 6.3 or later, only for the Wagtail integration
 
-- `AbstractFeedEntry` - The base data model for feed items. This is the data that's saved to the SQLite database.
-- `FeedEntry` - Concrete data model that's generated from the default `AbstractFeedEntry` or the `AbstractFeedEntry` in your `custom_models.py` file.
-- `fetch_rss_feed` - Imports an RSS feed.
-- `fetch_json_feed` - Imports a JSON feed.
-- `get_feed_rss` - Generates an RSS feed.
-- `get_feed_atom` - Generates an Atom feed.
-- `get_feed_json` - Generates a JSON feed.
+## Install the app
 
-## Customization
-This app was developed to work with a simple calendar events `RSS` feed and the default data model lends itself to that. It creates a `FeedEntry` database model with the following items:
+1. From a clone of this repository, install the package into your project's environment:
 
-- `id` - Primary key, created by the app
-- `tags` - Tags, created by the app
-- `feed_id` - Unique ID from the feed item we fetch
-- `title` - Title of the feed item we fetch 
-- `link` - Link to the feed item we fetch.
-- `published_at` - Date of the feed item we fetch.
-- `description` - Description or content of the feed item we fetch.
+	```sh
+	pip install .
+	```
 
-If you need to customize the `AbstractFeedEntry` model to save more fields to the database and/or map them differently, you will likely need to customize a `fetch_` method and a `get_method`. When you customize a `get_` method, **you will get a new endpoint** for your customized feed. A possible `custom_models.py` might look like this:
+	To include the Wagtail integration, install the `wagtail` extra with `pip install ".[wagtail]"`.
 
-```
-from sqlalchemy.ext.declarative import declared_attr
-from _config import db
-from models import AbstractFeedEntry
+2. Add `refeed` to `INSTALLED_APPS`. The Django admin needs `django.contrib.admin` and its usual dependencies.
 
-class AbstractFeedEntry(AbstractFeedEntry):
-    __abstract__ = True
+	```python
+	INSTALLED_APPS = [
+		# ...
+		"refeed",
+	]
+	```
 
-    # Override the link field and make it nullable
-    @declared_attr
-    def link(cls):
-        return db.Column(
-            db.String(200), nullable=True
-        )
+3. Add the feed URLs to your root URLconf:
 
-    # Add a new foobar field
-    @declared_attr
-    def foobar(cls):
-        return db.Column(
-            db.String(200), default='Rise above!', nullable=False
-        )
-```
+	```python
+	from django.urls import include, path
 
-A `custom_functions.py` might look like this:
+	urlpatterns = [
+		# ...
+		path("refeed/", include("refeed.urls")),
+	]
+	```
+
+4. Create the tables:
+
+	```sh
+	python manage.py migrate refeed
+	```
+
+Re-Feed does not set `SECRET_KEY` or any other project setting. Your project supplies them.
+
+## Add a feed source
+
+In the Django admin, open **Re-Feed > Feed sources** and add a source with a name, a URL, and a format.
+
+- **RSS or Atom** reads any feed that feedparser can parse.
+- **LiveWhale JSON** reads a LiveWhale `/live/json/events/...` URL.
+
+For a LiveWhale group, build the URL from these path segments:
+
+- `/hide_repeats/true` returns one item per event instead of one item per day.
+- `/response_fields/description,location` adds the description and location. LiveWhale leaves them out by default.
+- `/start_date/-60 days` includes multi-day events that started before today. Without it, LiveWhale returns only events from today onward. Encode the space as `%20`.
+
+For example, this URL reads the Library group from the University of Chicago calendar:
 
 ```
-from datetime import datetime
-import feedparser
-from flask import request
-from ftfy import fix_text
-
-from _config import app, db
-from functions import (
-    get_change_by_id,
-    get_entries_by_tag_or_not,
-    rfc_3339_date,
-    update_or_create_change,
-)
-from models import FeedEntry
-
-def fetch_rss_feed():
-    with app.app_context():
-        if not app.config['RSS_FEED_URL']:
-            print('Missing RSS_FEED_URL in config.')
-        feed = feedparser.parse(app.config['RSS_FEED_URL'])
-        feed.entries.reverse()
-        for entry in feed.entries:
-            existing_entry = FeedEntry.query.filter_by(feed_id=entry.id).first()
-
-            if not existing_entry:
-                title = fix_text(entry.title, unescape_html=False) # Remove HTML escaping on title
-                rss_entry = FeedEntry(
-                    title=title,
-                    feed_id=entry.id,
-                    link=entry.link,
-                    published_at=datetime.strptime(
-                        entry.published, app.config['RSS_PUBLISHED_AT_FORMAT']
-                    ),
-                    description=entry.get('description', ''),
-                    foobar=title,  # Populate the foobar field with the feed item title.
-                )
-                db.session.add(rss_entry)
-
-        db.session.commit()
-
-
-@app.route('/get_custom_feed_atom', methods=['GET'])
-@app.route('/get_custom_feed_atom/tag/<string:tag_name>', methods=['GET'])
-@app.route('/get_custom_feed_atom/tag/<string:tag_name>/<int:limit>', methods=['GET'])
-@app.route('/get_custom_feed_atom/<int:limit>', methods=['GET'])
-def get_custom_feed_atom(tag_name=None, limit=None):
-    try:
-        updated = rfc_3339_date(get_change_by_id(1).updated)
-    except (AttributeError):
-        updated = rfc_3339_date(update_or_create_change(1).updated)
-
-    feed_title = app.config['FEED_TITLE']
-    entries = get_entries_by_tag_or_not(tag_name, limit)
-    feed = ''
-    feed += '<?xml version="1.0" encoding="utf-8" ?>\n'
-    feed += '<feed xmlns="http://www.w3.org/2005/Atom">\n'
-    feed += f'<title type="html">{feed_title}</title>\n' # Remove type="html" attribute
-    feed += f'<id>{request.base_url}</id>\n'
-    feed += f'<updated>{updated}</updated>\n'
-
-    for entry in entries:
-        feed += '<entry>\n'
-        feed += f'<title>{entry.title}</title>\n' # Remove type="html" attribute
-        feed += f'<foobar>{entry.foobar}</foobar>\n' # Add the foobar field to our Atom feed
-        feed += f'<id>{entry.id}</id>\n'
-        feed += f'<link href="{entry.link}" rel="alternate" type="text/html"/>\n'
-        feed += f'<content type="html"><![CDATA[ {entry.description} ]]></content>\n'
-        for tag in entry.tags:
-            feed += f'<category term="{tag.name}"/>\n'
-        feed += '</entry>\n'
-    feed += '</feed>\n'
-    return feed, 200, {'Content-Type': 'application/rss+xml'}
+https://events.uchicago.edu/live/json/events/group/Library/hide_repeats/true/response_fields/description,location/start_date/-60%20days
 ```
 
-The examples above shows how you could add a `foobar` field to the default `AbstractFeedEntry` model and make the `link` field optional. We could then add a `fetch_rss_feed` function that would populate the `foobar` entry with the title of the feed item we're importing and remove the default html escaping on the title field. Lastly we write a `get_custom_feed_atom` function that adds the `foobar` field to the feed we generate. This feed is available at http://127.0.0.1:5000/get_custom_feed_atom. The new feed will have tags if we add them in the admin interface and it will have a `foobar` field on every item. Link fields will be optional.
+Re-Feed follows `links.next` when a LiveWhale response has more than one page.
 
-## Running in dev mode
+## Poll the sources from cron
+
+The `refeed_poll` management command fetches every active source and saves new and changed entries:
+
+```sh
+python manage.py refeed_poll
 ```
-source venv/bin/activate
-python app.p
+
+It prints one line per source, for example `Events: 41 fetched, 0 created, 2 updated, 39 unchanged`. If a source fails, the command records the error on the source, polls the remaining sources, and exits with status 1. To poll specific sources, pass `--source ID` once for each source.
+
+This crontab line polls every 15 minutes. Replace `<project-dir>` and `<venv>` with your project directory and virtual environment.
+
 ```
-If you set a `DEV_USERNAME` and `DEV_PASSWORD` in your configuration, you can log in at: http://127.0.0.1:5000. After logging in, you will be redirected to the tagging interface at http://127.0.0.1:5000/admin.
+*/15 * * * * cd <project-dir> && <venv>/bin/python manage.py refeed_poll
+```
 
-### Endpoints
-The admin for tagging and untagging items is found here: http://127.0.0.1:5000/admin. Re-Feed also creates the following enpoints for every feed type offered (JSON, RSS, Atom):
+Each poll updates the title, link, description, location, published time, start, end, and all-day flag of existing entries. Polling never changes tags. Entries that disappear from a source stay in the database.
 
-- http://127.0.0.1:5000/get_feed_TYPE
-- http://127.0.0.1:5000/get_feed_TYPE/tag/TAG_NAME
-- http://127.0.0.1:5000/get_feed_TYPE/tag/TAG_NAME/NUMBER
-- http://127.0.0.1:5000/get_feed_TYPE/NUMBER
+To poll a source from the admin, select it in **Feed sources** and run **Poll selected sources now**.
 
-This allows you to get the whole feed, all items tagged a certain way, or either of those limited by a number. For example, if you wanted to get an Atom feed with the five most recent items tagged with "fun", you would go to: http://127.0.0.1:5000/get_feed_atom/tag/fun/5.
+## Tag entries
+
+Create tags in **Re-Feed > Tags**. A tag's slug is the last part of its feed URLs.
+
+To tag entries in bulk, open **Re-Feed > Entries**, select the entries, choose a tag in the action bar, and run **Add the chosen tag to selected entries**. To tag one entry, open it and edit its tags. The other entry fields are read-only, because polling overwrites them.
+
+Tagging needs the `refeed.change_entry` permission. Adding and changing sources needs the `refeed` feed source permissions.
+
+## Read the tag feeds
+
+Each tag has three public, read-only feeds. With the URLconf above and a tag with the slug `kiosk`:
+
+| Format | URL |
+| --- | --- |
+| RSS 2.0 | `/refeed/tags/kiosk/rss/` |
+| Atom | `/refeed/tags/kiosk/atom/` |
+| JSON Feed 1.1 | `/refeed/tags/kiosk/json/` |
+
+In every format, the item link is the source item's link. In Atom, the link is the first `<link href>` of each `<entry>`. RSS `<guid>` and Atom `<id>` are the same link.
+
+RSS and Atom items carry the start and end as `ev:startdate` and `ev:enddate` from the RSS event module (`http://purl.org/rss/1.0/modules/event/`). JSON Feed items carry them in a `_refeed` object with `start`, `end`, `all_day`, `location`, and `source`. All-day values are dates, such as `2026-10-07`. Other values are ISO 8601 datetimes in UTC.
+
+Feeds list entries by start time, newest first. Entries without a start time sort by their published time.
+
+The feed views accept only GET and HEAD.
+
+## Use the Wagtail admin
+
+To manage Re-Feed in the Wagtail admin, add `refeed.contrib.wagtail` after `refeed`:
+
+```python
+INSTALLED_APPS = [
+	# ...
+	"refeed",
+	"refeed.contrib.wagtail",
+]
+```
+
+A **Re-Feed** menu appears with entries, tags, and feed sources as snippets. Wagtail checks the same `refeed` model permissions as the Django admin. Neither admin lets anyone add entries by hand.
+
+The `refeed` app itself never imports Wagtail.
+
+## Settings
+
+All settings are optional.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `REFEED_FEED_LIMIT` | `100` | Maximum number of items in each tag feed. |
+| `REFEED_FEED_TITLE` | `"Re-Feed"` | Prefix of each feed title. A tag named Kiosk gets the title `Re-Feed: Kiosk`. |
+| `REFEED_HTTP_TIMEOUT` | `30` | Seconds to wait for a source to respond. |
+| `REFEED_USER_AGENT` | `"django-refeed/<version>"` | `User-Agent` header sent to sources. |
+
+## How LiveWhale items become entries
+
+- The entry guid is the LiveWhale event id. The entry link is the item `url`.
+- LiveWhale lists a multi-day event once per day as an all-day item. Every copy holds the full span in `repeats_start` and `repeats_end`, so Re-Feed saves one entry with that span.
+- When `repeats_start` is empty, the span comes from `date_utc` and `date2_utc`.
+- An entry is all-day when LiveWhale marks the item all-day and the span starts and ends at midnight in the event's time zone. For all-day entries, `start` and `end` hold the first and last day.
+- HTML entities in titles and locations are decoded.
+
+For RSS and Atom sources, the guid is the item id, or the link when the item has no id. Start and end come from `ev:startdate` and `ev:enddate` when present. A date with no time marks the entry as all-day.
+
+## Run the tests
+
+```sh
+pip install -e ".[test]"
+pytest
+```
+
+The tests read fixture files and make no network requests. With Wagtail installed, the suite also tests the Wagtail integration.
